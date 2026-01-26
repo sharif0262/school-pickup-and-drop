@@ -6,15 +6,29 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Clock, User, Loader2, CheckCircle, XCircle, PlayCircle } from 'lucide-react';
 import { TripStatus } from '../../backend';
 import { toast } from 'sonner';
+import React from 'react';
 
 export default function AssignedRoutes() {
   const { data: allTrips = [], isLoading } = useGetAllTripRequests();
   const { identity } = useInternetIdentity();
   const updateStatus = useUpdateTripStatus();
 
-  const myTrips = allTrips.filter(
-    (trip) => trip.driverId?.toString() === identity?.getPrincipal().toString()
+  // Memoized filtering of trips
+  const myTrips = React.useMemo(
+    () => allTrips.filter(trip => trip.driverId?.toString() === identity?.getPrincipal().toString()),
+    [allTrips, identity]
   );
+
+  // Map of badge colors
+  const statusColors: Record<TripStatus, string> = {
+    [TripStatus.pending]: 'bg-warning text-white',
+    [TripStatus.inProgress]: 'bg-success text-white',
+    [TripStatus.completed]: 'bg-muted text-muted-foreground',
+    [TripStatus.emergency]: 'bg-destructive text-white',
+  };
+
+  const formatScheduledTime = (nano: bigint | number) =>
+    new Date(Number(nano) / 1_000_000).toLocaleString();
 
   const handleStatusUpdate = async (tripId: string, status: TripStatus) => {
     try {
@@ -54,7 +68,7 @@ export default function AssignedRoutes() {
       </div>
 
       <div className="space-y-4">
-        {myTrips.map((trip) => (
+        {myTrips.map(trip => (
           <Card key={trip.id}>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -64,19 +78,10 @@ export default function AssignedRoutes() {
                     {trip.childrenIds.length} {trip.childrenIds.length === 1 ? 'student' : 'students'}
                   </CardDescription>
                 </div>
-                <Badge
-                  className={
-                    trip.status === TripStatus.inProgress
-                      ? 'bg-success text-white'
-                      : trip.status === TripStatus.pending
-                        ? 'bg-warning text-white'
-                        : 'bg-muted text-muted-foreground'
-                  }
-                >
-                  {trip.status}
-                </Badge>
+                <Badge className={statusColors[trip.status]}>{trip.status}</Badge>
               </div>
             </CardHeader>
+
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-start gap-2 text-sm">
@@ -108,9 +113,7 @@ export default function AssignedRoutes() {
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="font-medium">Scheduled</p>
-                    <p className="text-muted-foreground">
-                      {new Date(Number(trip.scheduledTime) / 1_000_000).toLocaleString()}
-                    </p>
+                    <p className="text-muted-foreground">{formatScheduledTime(trip.scheduledTime)}</p>
                   </div>
                 </div>
               </div>
@@ -118,6 +121,7 @@ export default function AssignedRoutes() {
               <div className="flex gap-2">
                 {trip.status === TripStatus.pending && (
                   <Button
+                    aria-label="Start trip"
                     onClick={() => handleStatusUpdate(trip.id, TripStatus.inProgress)}
                     disabled={updateStatus.isPending}
                     className="flex-1 gap-2"
@@ -130,6 +134,7 @@ export default function AssignedRoutes() {
                 {trip.status === TripStatus.inProgress && (
                   <>
                     <Button
+                      aria-label="Complete trip"
                       onClick={() => handleStatusUpdate(trip.id, TripStatus.completed)}
                       disabled={updateStatus.isPending}
                       className="flex-1 gap-2"
@@ -139,6 +144,7 @@ export default function AssignedRoutes() {
                       Complete
                     </Button>
                     <Button
+                      aria-label="Report emergency"
                       onClick={() => handleStatusUpdate(trip.id, TripStatus.emergency)}
                       disabled={updateStatus.isPending}
                       variant="destructive"
@@ -158,3 +164,4 @@ export default function AssignedRoutes() {
     </div>
   );
 }
+
