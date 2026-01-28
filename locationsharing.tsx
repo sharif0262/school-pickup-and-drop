@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUpdateDriverLocation } from '../../hooks/useQueries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,9 @@ export default function LocationSharing() {
   const [isSharing, setIsSharing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
+  const lastUpdateRef = useRef<number>(0);
+
+  const THROTTLE_MS = 5000; // Only update backend once every 5 seconds
 
   const startSharing = () => {
     if (!navigator.geolocation) {
@@ -25,7 +28,12 @@ export default function LocationSharing() {
           longitude: position.coords.longitude,
         };
         setCurrentLocation(location);
-        updateLocation.mutate(location);
+
+        const now = Date.now();
+        if (now - lastUpdateRef.current > THROTTLE_MS) {
+          updateLocation.mutate(location);
+          lastUpdateRef.current = now;
+        }
       },
       (error) => {
         console.error('Geolocation error:', error);
@@ -118,3 +126,4 @@ export default function LocationSharing() {
     </div>
   );
 }
+
